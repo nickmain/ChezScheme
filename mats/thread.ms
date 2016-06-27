@@ -94,11 +94,11 @@
     (define $fib (lambda (x) (if (< x 2) 1 (+ ($fib (- x 1)) ($fib (- x 2))))))
     (define $nthreads 1)
     (define $yield
-      (let ([t (make-time 'time-duration 1000 0)])
+      (let ([t (make-time 'time-duration 1000000 0)])
         (lambda () (sleep t))))
     (define $thread-check
       (lambda ()
-        (let loop ([n 10] [nt (length ($threads))])
+        (let loop ([n 100] [nt (length ($threads))])
           (cond
             [(<= nt $nthreads)
              (set! $nthreads nt)
@@ -1026,7 +1026,15 @@
                     (f (+ i 1))
                     (cons (+ (* i thread-count) j) (g (+ j 1))))))))))
   ($thread-check)
-  (eqv?
+  ; this mat has some inherent starvation issues, with the main thread
+  ; looping rather than waiting on a condition at initialization time and
+  ; other threads looping rather than waiting on a condition when looking
+  ; for work to steal.  these looping threads can hog the cpu without
+  ; doing anything useful, causing progress to stall or halt.  this
+  ; manifests as occasional indefinite delays under Windows and OpenBSD,
+  ; and it has the potential to cause the same on other operating systems.
+  ; it's not clear how to fix the mat without changing it fundamentally.
+  #;(eqv?
     (let () ; from Ryan Newton
     
       (define-syntax ASSERT

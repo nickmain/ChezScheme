@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+include Mf-config
+
 Include=../boot/$m
-ZlibInclude=../zlib
 PetiteBoot=../boot/$m/petite.boot
 SchemeBoot=../boot/$m/scheme.boot
 Kernel=../boot/$m/kernel.$o
@@ -27,7 +28,7 @@ kernelsrc=statics.c segment.c alloc.c symbol.c intern.c gcwrapper.c gc-ocd.c gc-
 
 kernelobj=${kernelsrc:%.c=%.$o} ${mdobj}
 
-kernelhdr=system.h types.h version.h globals.h externs.h segment.h gc.c sort.h thread.h itest.c 
+kernelhdr=system.h types.h version.h globals.h externs.h segment.h gc.c sort.h thread.h config.h itest.c 
 
 mainsrc=main.c
 
@@ -41,14 +42,25 @@ ${Main}: ${mainobj}
 	cp -p ${mainobj} ${Main}
 
 rootsrc=$(shell cd ../../c; echo *)
-${rootsrc}: ; ln -s ../../c/$@ $@
+${rootsrc}:
+ifeq ($(OS),Windows_NT)
+	cp -p ../../c/$@ $@
+else
+	ln -s ../../c/$@ $@
+endif
 
 scheme.o: itest.c
+scheme.o main.o: config.h
 ${kernelobj}: system.h types.h version.h externs.h globals.h segment.h thread.h sort.h
 ${kernelobj}: ${Include}/equates.h ${Include}/scheme.h
 ${mainobj}: ${Include}/scheme.h
-scheme.o io.o new-io.o: ${ZlibInclude}/zconf.h ${ZlibInclude}/zlib.h
+${kernelobj}: ../zlib/zconf.h ../zlib/zlib.h
 gc-ocd.o gc-oce.o: gc.c
+
+../zlib/zlib.h ../zlib/zconf.h: ../zlib/configure.log
+
+../zlib/libz.a: ../zlib/configure.log
+	(cd ../zlib; ${MAKE})
 
 clean:
 	rm -f *.$o ${mdclean}

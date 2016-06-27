@@ -64,7 +64,7 @@ endif
 # clear running list of updated files
 set updatedfiles = ()
 
-workarea $M $W
+./workarea $M $W
 if ($status != 0) exit 1
 
 cd $W
@@ -141,7 +141,7 @@ set updatedfiles = ($updatedfiles csug/csug.stex)
 cat ../LOG > LOG
 echo "" >> LOG
 echo "$R changes:" >> LOG
-echo "   * updated version to $R" >> LOG
-echo $updatedfiles | sed -e 's/^/        /' | fmt >> LOG
+echo "- updated version to $R" >> LOG
+echo $updatedfiles | sed -e 's/^/    /' | fmt >> LOG
 
 exit 0

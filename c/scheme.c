@@ -1,12 +1,12 @@
 /* scheme.c
  * Copyright 1984-2016 Cisco Systems, Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,6 +15,7 @@
  */
 
 #include "system.h"
+#include "config.h"
 #include <setjmp.h>
 #include <limits.h>
 #ifdef WIN32
@@ -274,7 +275,7 @@ static void idiot_checks() {
       oops = 1;
     }
   }
-    
+
   if (sizeof(bucket_pointer_list) != sizeof(bucket_list)) {
     /* gc repurposes bucket_lists for bucket_pointer lists, so they'd better have the same size */
     fprintf(stderr, "bucket_pointer_list and bucket_list have different sizes\n");
@@ -369,7 +370,7 @@ void S_generic_invoke(tc, code) ptr tc; ptr code; {
     }
     __except(GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ?
              EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
-    { 
+    {
         if (S_pants_down)
             S_error_abort("nonrecoverable invalid memory reference");
         else
@@ -405,8 +406,10 @@ static const char *path_last(p) const char *p; {
 
 #define SEARCHPATHMAXSIZE 8192
 #ifdef WIN32
+#ifndef DEFAULT_HEAP_PATH
 /* by default, look in executable directory or in parallel boot directory */
-#define defaultsystemheappath "%x;%x\\..\\..\\boot\\%m"
+#define DEFAULT_HEAP_PATH "%x;%x\\..\\..\\boot\\%m"
+#endif
 #define SEARCHPATHSEP ';'
 
 static char *get_defaultheapdirs() {
@@ -415,24 +418,17 @@ static char *get_defaultheapdirs() {
   char key[PATH_MAX];
   snprintf(key, PATH_MAX, "HKEY_LOCAL_MACHINE\\Software\\Chez Scheme\\csv%s\\HeapSearchPath", VERSION);
   result = S_GetRegistry(defaultheapdirs, SEARCHPATHMAXSIZE, key);
-  if (result == NULL) result = defaultsystemheappath;
+  if (result == NULL) result = DEFAULT_HEAP_PATH;
   return result;
 }
 #else /* not WIN32: */
 #define SEARCHPATHSEP ':'
-/* keep in sync with scheme.1 */
-#define defaultsystemheappath "/usr/lib/csv%v/%m:/usr/local/lib/csv%v/%m"
+#ifndef DEFAULT_HEAP_PATH
+#define DEFAULT_HEAP_PATH "/usr/lib/csv%v/%m:/usr/local/lib/csv%v/%m"
+#endif
 
 static char *get_defaultheapdirs() {
-  static char defaultheapdirs[SEARCHPATHMAXSIZE];
-  const char *home;
-
-  if ((home = S_homedir()) != NULL &&
-        (snprintf(defaultheapdirs, SEARCHPATHMAXSIZE, "%s/lib/csv%%v/%%m:%s",
-                    home, defaultsystemheappath) < SEARCHPATHMAXSIZE))
-    return defaultheapdirs;
-  else
-    return defaultsystemheappath;
+  return DEFAULT_HEAP_PATH;
 }
 #endif /* WIN32 */
 
@@ -545,17 +541,23 @@ static IBOOL find_boot(name, ext, errorp) const char *name, *ext; IBOOL errorp; 
   char pathbuf[PATH_MAX], buf[PATH_MAX];
   uptr n; INT c;
   const char *path;
+  char *expandedpath;
   gzFile file;
 
   if (S_fixedpathp(name)) {
     if (strlen(name) >= PATH_MAX) {
-      fprintf(stderr, "boot-file path is to long %s\n", name);
+      fprintf(stderr, "boot-file path is too long %s\n", name);
       S_abnormal_exit();
     }
 
     path = name;
 
-    if (!(file = gzopen(S_pathname("", path, 0, (char *)0), "rb"))) {
+    expandedpath = S_malloc_pathname(path);
+    file = gzopen(expandedpath, "rb");
+    /* assumption (seemingly true based on a glance at the source code):
+       gzopen doesn't squirrel away a pointer to expandedpath. */
+    free(expandedpath);
+    if (!file) {
       if (errorp) {
         fprintf(stderr, "cannot open boot file %s\n", path);
         S_abnormal_exit();
@@ -570,10 +572,10 @@ static IBOOL find_boot(name, ext, errorp) const char *name, *ext; IBOOL errorp; 
     if (gzgetc(file) != fasl_type_header ||
         gzgetc(file) != 0 ||
         gzgetc(file) != 0 ||
-        gzgetc(file) != 0 || 
-        gzgetc(file) != 'c' || 
-        gzgetc(file) != 'h' || 
-        gzgetc(file) != 'e' || 
+        gzgetc(file) != 0 ||
+        gzgetc(file) != 'c' ||
+        gzgetc(file) != 'h' ||
+        gzgetc(file) != 'e' ||
         gzgetc(file) != 'z') {
       fprintf(stderr, "malformed fasl-object header in %s\n", path);
       S_abnormal_exit();
@@ -620,12 +622,17 @@ static IBOOL find_boot(name, ext, errorp) const char *name, *ext; IBOOL errorp; 
                   Sschemeheapdirs, Sdefaultheapdirs);
           S_abnormal_exit();
         } else {
-          if (verbose) fprintf(stderr, "no compatable %s%s found\n", name, ext);
+          if (verbose) fprintf(stderr, "no compatible %s%s found\n", name, ext);
           return 0;
         }
       }
 
-      if (!(file = gzopen(S_pathname("", path, 0, (char *)0), "rb"))) {
+      expandedpath = S_malloc_pathname(path);
+      file = gzopen(expandedpath, "rb");
+      /* assumption (seemingly true based on a glance at the source code):
+         gzopen doesn't squirrel away a pointer to expandedpath. */
+      free(expandedpath);
+      if (!file) {
         if (verbose) fprintf(stderr, "trying %s...cannot open\n", path);
         continue;
       }
@@ -636,23 +643,23 @@ static IBOOL find_boot(name, ext, errorp) const char *name, *ext; IBOOL errorp; 
       if (gzgetc(file) != fasl_type_header ||
           gzgetc(file) != 0 ||
           gzgetc(file) != 0 ||
-          gzgetc(file) != 0 || 
-          gzgetc(file) != 'c' || 
-          gzgetc(file) != 'h' || 
-          gzgetc(file) != 'e' || 
+          gzgetc(file) != 0 ||
+          gzgetc(file) != 'c' ||
+          gzgetc(file) != 'h' ||
+          gzgetc(file) != 'e' ||
           gzgetc(file) != 'z') {
         if (verbose) fprintf(stderr, "malformed fasl-object header in %s\n", path);
         gzclose(file);
         continue;
       }
-  
+
      /* check version */
       if (zget_uptr(file, &n) != 0) {
         if (verbose) fprintf(stderr, "unexpected end of file on %s\n", path);
         gzclose(file);
         continue;
       }
-  
+
       if (n != scheme_version) {
         if (verbose) {
           fprintf(stderr, "%s is for Version %s; ", path, S_format_scheme_version(n));
@@ -662,14 +669,14 @@ static IBOOL find_boot(name, ext, errorp) const char *name, *ext; IBOOL errorp; 
         gzclose(file);
         continue;
       }
-  
+
      /* check machine type */
       if (zget_uptr(file, &n) != 0) {
         if (verbose) fprintf(stderr, "unexpected end of file on %s\n", path);
         gzclose(file);
         continue;
       }
-  
+
       if (n != machine_type) {
         if (verbose)
           fprintf(stderr, "%s is for machine-type %s; need machine-type %s\n", path,
@@ -1185,7 +1192,7 @@ extern void Sscheme_deinit() {
   p = S_symbol_value(S_intern((const unsigned char *)"$close-files"));
   S_initframe(tc, 0);
   boot_call(tc, p, 0);
-  
+
   S_errors_to_console = 1;
   current_state = DEINITIALIZED;
 }

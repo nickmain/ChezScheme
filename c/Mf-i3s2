@@ -17,7 +17,7 @@ m = i3s2
 Cpu = I386
 
 mdclib = -lnsl -ldl -lm -lcurses -lrt
-C = gcc -m32 -Wpointer-arith -Wextra -Werror -O
+C = gcc ${CFLAGS} -m32 -Wpointer-arith -Wextra -Werror -O ${CPPFLAGS}
 o = o
 mdsrc = i3le.c
 mdobj = i3le.o
@@ -26,7 +26,7 @@ mdobj = i3le.o
 .SUFFIXES: .c .o
 
 .c.o:
-	$C -c -DSOLARIS -D${Cpu} -I${Include} -I${ZlibInclude} $*.c
+	$C -c -DSOLARIS -D${Cpu} -I${Include} -I../zlib $*.c
 
 include Mf-base
 
@@ -34,8 +34,7 @@ ${Kernel}: ${kernelobj} ../zlib/libz.a
 	ld -melf_i386 -r -X -o ${Kernel} ${kernelobj} ../zlib/libz.a
 
 ${Scheme}: ${Kernel} ${Main}
-	$C -o ${Scheme} ${Kernel} ${Main} ${mdclib}
+	$C -o ${Scheme} ${Kernel} ${Main} ${mdclib} ${LDFLAGS}
 
-${ZlibInclude}/zlib.h ${ZlibInclude}/zconf.h ../zlib/libz.a:
+../zlib/configure.log:
 	(cd ../zlib; CFLAGS=-m32 ./configure)
-	(cd ../zlib; make)

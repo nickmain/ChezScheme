@@ -17,7 +17,7 @@ m = tppc32le
 Cpu = PPC32
 
 mdclib = -lm -ldl -lncurses -lpthread -lrt
-C = gcc -m32 -Wpointer-arith -Wextra -Werror -O2 -D_REENTRANT -pthread
+C = gcc ${CPPFLAGS} -m32 -Wpointer-arith -Wextra -Werror -O2 -D_REENTRANT -pthread ${CFLAGS}
 o = o
 mdsrc = ppc32le.c
 mdobj = ppc32le.o
@@ -26,7 +26,7 @@ mdobj = ppc32le.o
 .SUFFIXES: .c .o
 
 .c.o:
-	$C -c -D${Cpu} -I${Include} -I${ZlibInclude} $*.c
+	$C -c -D${Cpu} -I${Include} -I../zlib $*.c
 
 include Mf-base
 
@@ -34,8 +34,7 @@ ${Kernel}: ${kernelobj} ../zlib/libz.a
 	ld -r -X -o ${Kernel} ${kernelobj} ../zlib/libz.a
 
 ${Scheme}: ${Kernel} ${Main}
-	$C -rdynamic -o ${Scheme} ${Kernel} ${Main} ${mdclib}
+	$C -rdynamic -o ${Scheme} ${Kernel} ${Main} ${mdclib} ${LDFLAGS}
 
-${ZlibInclude}/zlib.h ${ZlibInclude}/zconf.h ../zlib/libz.a:
+../zlib/configure.log:
 	(cd ../zlib; CFLAGS=-m32 ./configure)
-	(cd ../zlib; make)

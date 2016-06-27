@@ -1700,6 +1700,8 @@
   "; Test error \"cannot represent\"\n\n(sqrt #e+inf.0)\n\n"
   "; Test error \"cannot represent\"\n\n(sqrt #e-inf.0)\n\n"
   "; Test error \"cannot represent\"\n\n(sqrt #e+nan.0)\n\n"
+  "; Test error \"cannot represent\"\n\n(sqrt #e0/0e20)\n\n"
+  "; Test error \"cannot represent\"\n\n(sqrt #e1@1)\n\n"
   "; Test error \"invalid number syntax\"\n\n(sqrt #e+nan.5)\n\n"
   "; Test error \"invalid sharp-sign prefix #~c\"\n\n(if #T #N #T)\n"
   "; Test error \"invalid sharp-sign prefix ~a~a\"\n\n(if (optimize-til-it-hurts?) (#7%super-fast+ 1 2) (+ 1 2))\n"
@@ -1833,6 +1835,10 @@
   "; Test error \"back-slash symbol escape syntax not allowed in #!r6rs mode\"\n\n#!r6rs ab\\ cd\n"
   "; Test error \"|...| symbol escape syntax not allowed in #!r6rs mode\"\n\n#!r6rs |ab  cd|\n"
   "; Test error \"@abc symbol syntax not allowed in #!r6rs mode\"\n\n#!r6rs @abc\n"
+  "; Test error \"123a symbol syntax not allowed in #!r6rs mode\"\n\n#!r6rs 123a\n"
+  "; Test error \"123# number syntax not allowed in #!r6rs mode\"\n\n#!r6rs 123#\n"
+  "; Test error \"#x1/2e2 number syntax not allowed in #!r6rs mode\"\n\n#!r6rs 1/2e2\n"
+  "; Test error \"#x.3 number syntax not allowed in #!r6rs mode\"\n\n#!r6rs #x.3\n"
 
  ; following tests adapted from the read0 benchmark distributed by Will
  ; Clinger, which as of 08/08/2009 appears to be in the public domain,
@@ -2612,12 +2618,13 @@
       (lambda () (((inspect/object fatfib) 'code) 'source-path))
       list)
     '("../examples/fatfib.ss" 16 4))
-  (equal?
-    (parameterize ([cd "/"] [source-directories (list (cd))])
-      (call-with-values
-        (lambda () (((inspect/object fatfib) 'code) 'source-path))
-        list))
-    (list (format "~a/../examples/fatfib.ss" (cd)) 16 4))
+  (or (windows?)
+      (equal?
+       (parameterize ([cd "/"] [source-directories (list (cd))])
+         (call-with-values
+	   (lambda () (((inspect/object fatfib) 'code) 'source-path))
+	   list))
+       (list (format "~a/../examples/fatfib.ss" (cd)) 16 4)))
   (begin
     (parameterize ([source-directories (list (parameterize ([cd ".."]) (cd)))])
       (load "examples/fatfib.ss" compile))
@@ -2920,11 +2927,11 @@
       (and (time? (file-access-time "\\\\?\\c:\\"))
            (time? (file-change-time "\\\\?\\c:\\"))
            (time? (file-modification-time "\\\\?\\c:\\"))))
-  (or (embedded?)
+  (or (windows?) (embedded?)
       (time=? (file-access-time "Makefile") (file-access-time (format "Mf-~a" (machine-type)))))
-  (or (embedded?)
+  (or (windows?) (embedded?)
       (time=? (file-change-time "Makefile") (file-change-time (format "Mf-~a" (machine-type)))))
-  (or (embedded?)
+  (or (windows?) (embedded?)
       (time=? (file-modification-time "Makefile") (file-modification-time (format "Mf-~a" (machine-type)))))
   (error? (file-access-time "probably/not/there"))
   (error? (file-access-time "probably/not/there" #f))
@@ -3450,14 +3457,14 @@
    (begin (display "hello " (cadr p))
           (flush-output-port (cadr p))
           #t)
-   (begin (sleep (make-time 'time-duration 0 (if (embedded?) 3 1))) #t) ; wait for subprocess to catch up
+   (begin (sleep (make-time 'time-duration 0 3)) #t) ; wait for subprocess to catch up
    (char-ready? (car p))
    (eq? (read (car p)) 'hello)
    (char-ready? (car p))
    (char=? (read-char (car p)) #\space)
    (not (char-ready? (car p)))
    (begin (close-output-port (cadr p)) #t)
-   (begin (sleep (make-time 'time-duration 0 (if (embedded?) 3 1))) #t) ; wait for subprocess to catch up
+   (begin (sleep (make-time 'time-duration 0 3)) #t) ; wait for subprocess to catch up
    (sanitized-error? (write-char #\a (cadr p)))
    (sanitized-error? (write-char #\newline (cadr p)))
    (sanitized-error? (flush-output-port (cadr p)))
